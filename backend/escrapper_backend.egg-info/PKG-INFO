@@ -1,0 +1,157 @@
+Metadata-Version: 2.4
+Name: escrapper-backend
+Version: 0.1.0
+Summary: E-Paper News Aggregation & Visualization System — FastAPI Backend
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.110.0
+Requires-Dist: uvicorn[standard]>=0.29.0
+Requires-Dist: sqlalchemy[asyncio]>=2.0.28
+Requires-Dist: asyncpg>=0.29.0
+Requires-Dist: alembic>=1.13.1
+Requires-Dist: pydantic>=2.6.3
+Requires-Dist: pydantic-settings>=2.2.1
+Requires-Dist: celery>=5.3.6
+Requires-Dist: redis>=5.0.3
+Requires-Dist: playwright>=1.43.0
+Requires-Dist: beautifulsoup4>=4.12.3
+Requires-Dist: lxml>=5.1.0
+Requires-Dist: nltk>=3.8.1
+Requires-Dist: scikit-learn>=1.4.1
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: tenacity>=8.2.3
+Requires-Dist: structlog>=24.1.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: pdfplumber>=0.11.9
+Requires-Dist: fpdf2>=2.7.9
+Provides-Extra: dev
+Requires-Dist: pytest>=8.1.1; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.6; extra == "dev"
+Requires-Dist: pytest-mock>=3.14.0; extra == "dev"
+Requires-Dist: httpx>=0.27.0; extra == "dev"
+Requires-Dist: ruff>=0.3.4; extra == "dev"
+
+# E-Paper News Aggregation & Visualization System
+
+> Automated daily news scraping, NLP processing, and visualization platform — targeting **Daily Thanthi E-Paper**.
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Presentation Layer   Vue 3 + Vite + TailwindCSS        │
+├─────────────────────────────────────────────────────────┤
+│  Controller Layer     FastAPI routes (Pydantic schemas) │
+├─────────────────────────────────────────────────────────┤
+│  Service Layer        Scraper · Summarizer · Dedup      │
+├─────────────────────────────────────────────────────────┤
+│  Data Access Layer    SQLAlchemy Repositories           │
+├─────────────────────────────────────────────────────────┤
+│  Database Layer       PostgreSQL + pg_trgm              │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Vue 3 · Vite · TailwindCSS · Pinia |
+| Backend | Python 3.11 · FastAPI · SQLAlchemy (async) |
+| Scraping | Playwright · BeautifulSoup4 |
+| Task Queue | Celery + Redis |
+| Database | PostgreSQL 16 |
+| Package Mgr | `uv` (Python) · `npm` (Frontend) |
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop)
+- [uv](https://github.com/astral-sh/uv) — `pip install uv`
+- Node.js 20+
+
+### 1. Environment Setup
+
+```bash
+cp .env.example .env
+# Edit .env with your values
+```
+
+### 2. Run with Docker Compose (Recommended)
+
+```bash
+docker-compose up --build
+```
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| API Docs (Swagger) | http://localhost:8000/docs |
+
+### 3. Local Development (without Docker)
+
+**Backend:**
+```bash
+cd backend
+uv sync
+uv run alembic upgrade head           # Run DB migrations
+uv run uvicorn main:app --reload      # Start API server
+uv run celery -A services.celery_app worker --loglevel=info  # Start worker
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## 📁 Directory Structure
+
+```
+/
+├── /docs               # BRD, Architecture, API specs
+├── /tests
+│   ├── /backend        # Pytest tests
+│   └── /frontend       # Vue Test Utils
+├── /frontend           # Vue 3 + Vite app
+│   └── /src
+│       ├── /components # ArticleCard, FilterBar, NavBar
+│       ├── /views      # HomeView, EditionView
+│       ├── /stores     # Pinia (articles, filters)
+│       └── /services   # Axios API service
+├── /backend            # FastAPI application
+│   ├── /api            # Route controllers
+│   ├── /core           # Config, DB, DI
+│   ├── /models         # SQLAlchemy + Pydantic
+│   ├── /repositories   # Data Access Layer
+│   ├── /services       # Business logic
+│   └── /scraper        # Playwright scrapers
+├── pyproject.toml
+├── docker-compose.yml
+└── .env.example
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+# Backend
+cd backend && uv run pytest ../tests/backend/ -v
+
+# Frontend
+cd frontend && npm run test
+```
+
+---
+
+## 📜 License
+
+MIT — Scraping of metadata and summaries only. All content ownership belongs to Daily Thanthi. Users are redirected to original source for full articles.

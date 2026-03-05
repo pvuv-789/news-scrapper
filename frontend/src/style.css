@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased;
+  }
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
+}
+
+.btn-primary {
+  @apply px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-all duration-200 font-medium shadow-md hover:shadow-lg active:scale-95;
+}
+
+.input-field {
+  @apply w-full px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all;
+}

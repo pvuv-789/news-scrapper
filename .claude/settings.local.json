@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:epaper.dailythanthi.com)",
+      "Bash(netstat:*)",
+      "Bash(python:*)",
+      "Bash(grep:*)",
+      "Bash(uv run:*)"
+    ]
+  }
+}

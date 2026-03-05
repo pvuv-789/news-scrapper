@@ -1,0 +1,7 @@
+alembic
+api
+core
+models
+repositories
+scraper
+services
