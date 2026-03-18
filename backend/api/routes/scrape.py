@@ -297,7 +297,15 @@ async def scrape_article_content_stream(url: str):
         try:
             yield _sse("step", message="Starting browser…")
             async with async_playwright() as pw:
-                browser = await pw.chromium.launch(headless=settings.scraper_headless)
+                browser = await pw.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                    ],
+                )
                 context = await browser.new_context(locale="ta-IN")
                 page = await context.new_page()
 
@@ -942,7 +950,7 @@ def _scrape_any_url_sync(url: str) -> dict:
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
         )
         context = browser.new_context(
             user_agent=HEADERS["User-Agent"],
@@ -1174,7 +1182,7 @@ def _render_url_to_pdf_sync(url: str) -> bytes:
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
         )
         context = browser.new_context(
             user_agent=HEADERS["User-Agent"],
@@ -2209,7 +2217,7 @@ def _scrape_dailythanthi_sync(url: str, email: str, password: str, base_url: str
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
         )
         context = browser.new_context(
             user_agent=HEADERS["User-Agent"],
@@ -2325,7 +2333,7 @@ def _scrape_epaper_today_sync(email: str, password: str, base_url: str) -> dict:
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
         )
         context = browser.new_context(
             user_agent=HEADERS["User-Agent"],
@@ -2462,7 +2470,7 @@ def _scrape_edition_date_sync(
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
         )
         context = browser.new_context(
             user_agent=HEADERS["User-Agent"],
@@ -2747,7 +2755,7 @@ def _screenshot_sync(url: str, email: str | None, password: str | None) -> bytes
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
         )
         context = browser.new_context(
             user_agent=HEADERS["User-Agent"],
@@ -3087,7 +3095,7 @@ def _scrape_edition_articles_sync(
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
         )
         context = browser.new_context(
             user_agent=HEADERS["User-Agent"],
@@ -3371,7 +3379,7 @@ def _discover_editions_sync(email: str, password: str, base_url: str) -> list[di
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
         )
         context = browser.new_context(
             user_agent=HEADERS["User-Agent"],
@@ -3481,7 +3489,7 @@ def _scrape_edition_by_name_sync(
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
         )
         context = browser.new_context(
             user_agent=HEADERS["User-Agent"],
@@ -4254,7 +4262,15 @@ async def classifieds_ocr_pdf(request: ClassifiedsOcrRequest):
     def _render_pdf(html_str: str) -> bytes:
         from playwright.sync_api import sync_playwright
         with sync_playwright() as pw:
-            browser = pw.chromium.launch()
+            browser = pw.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                ],
+            )
             pg      = browser.new_page()
             pg.set_content(html_str, wait_until="domcontentloaded")
             data = pg.pdf(

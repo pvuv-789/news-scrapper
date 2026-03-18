@@ -51,7 +51,7 @@ class DailyThanthiScraper(BaseScraper):
             self._playwright = await async_playwright().start()
             self._browser = await self._playwright.chromium.launch(
                 headless=_settings.scraper_headless,
-                args=["--no-sandbox", "--disable-dev-shm-usage"],
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
             )
             self._context = await self._browser.new_context(
                 user_agent=(
