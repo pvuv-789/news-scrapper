@@ -87,6 +87,22 @@ def create_app() -> FastAPI:
             )
         return FileResponse(_html_path, media_type="text/html")
 
+    # Serve the classifieds image viewer
+    _classifieds_html_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "classifieds_viewer.html",
+    )
+
+    @app.get("/viewer/classifieds", tags=["Viewer"])
+    async def classifieds_viewer():
+        """Serve the classified ads image viewer page."""
+        if not os.path.isfile(_classifieds_html_path):
+            raise HTTPException(
+                status_code=404,
+                detail="Classifieds viewer not found.",
+            )
+        return FileResponse(_classifieds_html_path, media_type="text/html")
+
     return app
 
 

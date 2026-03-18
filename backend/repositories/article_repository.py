@@ -79,7 +79,10 @@ class ArticleRepository(BaseRepository[Article]):
         if section_id:
             conditions.append(Article.section_id == section_id)
         if published_date:
-            conditions.append(func.date(Article.published_at) == published_date)
+            # Convert stored UTC timestamp → IST (UTC+5:30) before extracting date
+            # so that articles scraped overnight don't land on the wrong calendar day.
+            ist_date = func.date(func.timezone('Asia/Kolkata', Article.published_at))
+            conditions.append(ist_date == published_date)
 
         base_stmt: Select = select(Article).where(and_(*conditions))
 

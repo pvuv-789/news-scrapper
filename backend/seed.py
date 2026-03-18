@@ -106,7 +106,7 @@ async def seed() -> None:
             session.add(pub)
             print(f"✔ Publication '{pub.name}' seeded  (id={pub.id})")
         else:
-            print("ℹ Publication already exists — skipping.")
+            print("Publication already exists - skipping.")
 
         await session.flush()
 

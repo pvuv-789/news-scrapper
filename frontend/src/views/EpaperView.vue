@@ -54,7 +54,7 @@ function onError() {
 .epaper-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 64px); /* subtract NavBar height */
+  height: 100vh;
   background: #e8e8e8;
 }
 

@@ -1,14 +1,10 @@
 <template>
-  <div class="space-y-6">
-    <!-- Header Area -->
-    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+  <div class="home-page">
+    <!-- Page Header -->
+    <div class="page-header">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">
-          {{ filtersStore.currentEditionName }} News
-        </h1>
-        <p class="text-gray-500 mt-1 font-medium">
-          Top stories curated from the Daily Thanthi E-Paper.
-        </p>
+        <h1 class="page-title">{{ filtersStore.currentEditionName }} News</h1>
+        <p class="page-sub">Top stories curated from the Daily Thanthi E-Paper.</p>
       </div>
     </div>
 
@@ -56,54 +52,95 @@
 
     <!-- Articles Grid -->
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <ArticleCard 
-        v-for="article in articlesStore.articles" 
-        :key="article.id" 
-        :article="article" 
+      <ArticleCard
+        v-for="article in articlesStore.articles"
+        :key="article.id"
+        :article="article"
+        @select="selectedArticle = $event"
       />
     </div>
 
-    <!-- Pagination (Simplified) -->
-    <div v-if="articlesStore.articles.length > 0" class="flex items-center justify-between py-8 border-t border-gray-100">
-      <p class="text-sm text-gray-500 font-medium">
+    <!-- Article Detail Modal -->
+    <ArticleDetailModal
+      v-if="selectedArticle"
+      :article="selectedArticle"
+      @close="selectedArticle = null"
+    />
+
+    <!-- Pagination -->
+    <div v-if="articlesStore.articles.length > 0" class="flex items-center justify-between py-6 border-t border-gray-100 mt-2">
+      <p class="text-sm text-gray-400 font-medium">
         Showing {{ articlesStore.articles.length }} of {{ articlesStore.total }} articles
       </p>
-      <div class="flex space-x-2">
-        <button 
+      <div class="flex gap-2">
+        <button
           :disabled="articlesStore.page === 1"
           @click="prevPage"
-          class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-        >
-          Previous
-        </button>
-        <button 
+          class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all"
+        >← Previous</button>
+        <button
           :disabled="articlesStore.articles.length < articlesStore.size"
           @click="nextPage"
-          class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-        >
-          Next
-        </button>
+          class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all"
+        >Next →</button>
       </div>
     </div>
   </div>
 </template>
 
+<style scoped>
+.home-page {
+  padding: 28px 32px 32px;
+  max-width: 1200px;
+}
+.page-header {
+  margin-bottom: 24px;
+}
+.page-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  background: linear-gradient(90deg, #0f172a 0%, #334155 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+.page-sub {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+</style>
+
 <script setup>
-import { onMounted, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useArticlesStore } from '@/stores/articles'
 import { useFiltersStore } from '@/stores/filters'
 import ArticleCard from '@/components/ArticleCard.vue'
 import FilterBar from '@/components/FilterBar.vue'
+import ArticleDetailModal from '@/components/ArticleDetailModal.vue'
 
 const articlesStore = useArticlesStore()
 const filtersStore = useFiltersStore()
+const selectedArticle = ref(null)
+
+// Local today string (IST-safe) used when store date hasn't been set yet
+function _localToday() {
+  const d = new Date()
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-')
+}
 
 const reloadData = () => {
-  articlesStore.fetchArticles({
-    edition_id: filtersStore.selectedEditionId,
-    section_id: filtersStore.selectedSectionId,
-    date: filtersStore.selectedDate
-  })
+  const filters = {
+    date: filtersStore.selectedDate || _localToday(),
+  }
+  if (filtersStore.selectedEditionId)  filters.edition_id  = filtersStore.selectedEditionId
+  if (filtersStore.selectedSectionId)  filters.section_id  = filtersStore.selectedSectionId
+  articlesStore.fetchArticles(filters)
 }
 
 // Initial fetch

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import EpaperView from '@/views/EpaperView.vue'
+import DashboardView from '@/views/DashboardView.vue'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -13,12 +14,17 @@ const router = createRouter({
         {
             path: '/edition/:id',
             name: 'edition',
-            component: HomeView // Reusing HomeView for edition-specific views with params
+            component: HomeView
         },
         {
             path: '/epaper',
             name: 'epaper',
             component: EpaperView
+        },
+        {
+            path: '/dashboard',
+            name: 'dashboard',
+            component: DashboardView
         },
         {
             path: '/:pathMatch(.*)*',

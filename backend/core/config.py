@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     summary_max_sentences: int = 3
     dedup_similarity_threshold: float = 0.85
 
+    # ── Anthropic ──────────────────────────────────────────────────────────────
+    anthropic_api_key: str = ""
+
+    # ── Google Gemini ──────────────────────────────────────────────────────────
+    gemini_api_key: str = ""
+
     # ── CORS ───────────────────────────────────────────────────────────────────
     cors_origins: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 

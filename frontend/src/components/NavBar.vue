@@ -50,6 +50,34 @@
             </svg>
             E-Paper
           </router-link>
+
+          <!-- Dashboard link -->
+          <router-link
+            to="/dashboard"
+            class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            :class="$route.name === 'dashboard'
+              ? 'bg-blue-50 text-blue-700'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+            </svg>
+            Dashboard
+          </router-link>
+
+          <!-- Scrape All Editions -->
+          <button
+            @click="openViewer"
+            class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Scrape All Editions
+          </button>
+
           <PdfScrapeModal />
           <button class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg md:hidden">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,6 +97,19 @@
           >
             E-Paper
           </router-link>
+          <router-link
+            to="/dashboard"
+            class="px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap"
+            :class="$route.name === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'"
+          >
+            Dashboard
+          </router-link>
+          <button
+            @click="openViewer"
+            class="px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap bg-brand-500 text-white"
+          >
+            Scrape All Editions
+          </button>
        <button
             @click="filtersStore.setSection(null)"
             class="px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap"
@@ -95,6 +136,13 @@ import { useFiltersStore } from '@/stores/filters'
 import PdfScrapeModal from '@/components/PdfScrapeModal.vue'
 
 const filtersStore = useFiltersStore()
+
+function openViewer() {
+  const base = import.meta.env.VITE_API_BASE_URL
+    ? import.meta.env.VITE_API_BASE_URL.replace('/api', '')
+    : window.location.origin
+  window.open(base + '/viewer', '_blank')
+}
 
 const today = computed(() => {
   return new Intl.DateTimeFormat('en-IN', {

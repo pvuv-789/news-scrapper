@@ -7,7 +7,7 @@ Generate Daily Thanthi newspaper layout HTML with live edition scraping.
 """
 import json, re, os
 
-BASE = r'C:\Users\Dell\Downloads\E-scrapper'
+BASE = os.path.dirname(os.path.abspath(__file__))
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 def clean(text):
@@ -177,6 +177,40 @@ with open(jpath, encoding='utf-8') as f:
 date = data.get('date', '03/03/2026')
 arts_html = '\n'.join(article_html(a, i, date) for i, a in enumerate(data['articles']))
 
+# ── Build initial pages structure for JSON download ─────────────────────────
+# Group articles by page (use page_no / page_label if present, else one group)
+_pages_dict: dict = {}
+for a in data.get('articles', []):
+    pg_label = str(a.get('page_label') or a.get('page_no') or 'Page 1')
+    pgid     = str(a.get('pgid') or '')
+    if pg_label not in _pages_dict:
+        _pages_dict[pg_label] = {'pgid': pgid, 'label': pg_label, 'articles': [], 'screenshot_b64': '', 'highres_url': ''}
+    _pages_dict[pg_label]['articles'].append({
+        'story_id':   str(a.get('story_id') or a.get('id') or ''),
+        'headline':   a.get('headline') or a.get('title') or '',
+        'byline':     a.get('byline') or '',
+        'dateline':   a.get('dateline') or '',
+        'body':       a.get('body') or a.get('content') or '',
+        'image_urls': [u for u in (a.get('image_urls') or []) if not str(u).startswith('data:')],
+    })
+
+_initial_pages = list(_pages_dict.values())
+# Fallback: if no articles had page info, put everything in one page
+if not _initial_pages and data.get('articles'):
+    _initial_pages = [{
+        'pgid': '', 'label': 'All Articles', 'screenshot_b64': '', 'highres_url': '',
+        'articles': [{
+            'story_id':   str(a.get('story_id') or a.get('id') or ''),
+            'headline':   a.get('headline') or a.get('title') or '',
+            'byline':     a.get('byline') or '',
+            'dateline':   a.get('dateline') or '',
+            'body':       a.get('body') or a.get('content') or '',
+            'image_urls': [u for u in (a.get('image_urls') or []) if not str(u).startswith('data:')],
+        } for a in data['articles']],
+    }]
+
+INITIAL_PAGES_JSON = json.dumps(_initial_pages, ensure_ascii=False)
+
 # ── CSS ────────────────────────────────────────────────────────────────────────
 CSS = """
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -253,6 +287,18 @@ CSS = """
   .tool-btn.pdf-dl { color: #c00; font-weight: 700; }
   .tool-btn.pdf-dl svg { fill: #c00; }
   .tool-btn.pdf-dl.disabled { opacity: 0.35; cursor: not-allowed !important; pointer-events: none; }
+  .tool-btn.classified-dl { color: #2a5fa5; font-weight: 700; }
+  .tool-btn.classified-dl svg { fill: #2a5fa5; }
+  .tool-btn.classified-dl.disabled { opacity: 0.35; cursor: not-allowed !important; pointer-events: none; }
+  .tool-btn.tender-dl { color: #7a5200; font-weight: 700; }
+  .tool-btn.tender-dl svg { fill: #7a5200; }
+  .tool-btn.tender-dl.disabled { opacity: 0.35; cursor: not-allowed !important; pointer-events: none; }
+  .tool-btn.json-dl { color: #1a7a4a; font-weight: 700; }
+  .tool-btn.json-dl svg { fill: #1a7a4a; }
+  .tool-btn.json-dl.disabled { opacity: 0.35; cursor: not-allowed !important; pointer-events: none; }
+  .tool-btn.cls-img-dl { color: #6b21a8; font-weight: 700; }
+  .tool-btn.cls-img-dl svg { fill: #6b21a8; }
+  .tool-btn.cls-img-dl.disabled { opacity: 0.35; cursor: not-allowed !important; pointer-events: none; }
 
   /* ── EDITION MODAL ── */
   .modal-overlay {
@@ -448,6 +494,37 @@ CSS = """
     width: 100%; text-align: center; border-top: 1px solid #e0e0e0;
   }
 
+  /* real article photo */
+  .art-photo {
+    max-width: 100%; height: auto; display: block;
+    border-radius: 3px; border: 1px solid #ddd;
+    margin: 0 auto;
+  }
+  .art-img-real {
+    margin: 12px 0; text-align: center;
+  }
+  .art-img-real figcaption {
+    font-size: 9pt; color: #888; padding: 4px 10px;
+    background: #f6f6f6; border-top: 1px solid #e0e0e0;
+    text-align: center;
+  }
+
+  /* full newspaper page image shown above articles */
+  .page-newspaper-wrap {
+    margin: 0 0 24px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,.12);
+  }
+  .page-newspaper-img {
+    width: 100%; height: auto; display: block;
+  }
+  .page-newspaper-label {
+    background: #333; color: #fff; font-size: 9pt;
+    padding: 4px 12px; text-align: center;
+  }
+
   /* body columns */
   .body {
     text-align: justify; font-size: 11.5pt; line-height: 1.78;
@@ -463,6 +540,22 @@ CSS = """
   /* no-articles message */
   .no-articles {
     padding: 48px 20px; text-align: center; color: #888; font-size: 14pt;
+  }
+
+  /* full newspaper page image shown above articles */
+  .page-newspaper-wrap {
+    margin: 0 0 24px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,.12);
+  }
+  .page-newspaper-img {
+    width: 100%; height: auto; display: block;
+  }
+  .page-newspaper-label {
+    background: #333; color: #fff; font-size: 9pt;
+    padding: 4px 12px; text-align: center;
   }
 
   /* ── PRINT ── */
@@ -593,8 +686,14 @@ JS = r"""
   // ── State: currently loaded edition + pages ──────────────────────────────────
   let _currentEid = '';
   let _currentEditionName = 'Madurai';
-  let _currentPages = [];
+  let _currentPages = {INITIAL_PAGES_JSON};
   let _currentPageIdx = 0;
+
+  // Enable Download JSON button immediately (initial data always available)
+  document.addEventListener('DOMContentLoaded', function() {{
+    const btn = document.getElementById('json-all-btn');
+    if (btn) btn.classList.remove('disabled');
+  }});
 
   // ── Page dropdown toggle ──────────────────────────────────────────────────────
   function togglePageDropdown() {
@@ -610,7 +709,48 @@ JS = r"""
     }
   });
 
-  // ── Switch to a specific newspaper page ──────────────────────────────────────
+  // ── Build newspaper page screenshot element ───────────────────────────────────
+  function makePageScreenshotEl(pg) {
+    if (!pg || !pg.screenshot_b64) return null;
+    const wrap = document.createElement('div');
+    wrap.className = 'page-newspaper-wrap';
+    const img = document.createElement('img');
+    img.src = 'data:image/jpeg;base64,' + pg.screenshot_b64;
+    img.alt = pg.label || '';
+    img.className = 'page-newspaper-img';
+    wrap.appendChild(img);
+    if (pg.label) {
+      const lbl = document.createElement('div');
+      lbl.className = 'page-newspaper-label';
+      lbl.textContent = pg.label;
+      wrap.appendChild(lbl);
+    }
+    return wrap;
+  }
+
+  // ── Render one page's articles into a container ───────────────────────────────
+  function renderPageArticles(paper, pg, startIdx) {
+    // Screenshot
+    const shot = makePageScreenshotEl(pg);
+    if (shot) paper.appendChild(shot);
+
+    const arts = pg.articles || [];
+    if (arts.length === 0) {
+      const msg = document.createElement('div');
+      msg.className = 'no-articles';
+      msg.textContent = 'இந்த பக்கத்தில் செய்திகள் கிடைக்கவில்லை.';
+      paper.appendChild(msg);
+    } else {
+      arts.forEach((art, i) => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = renderArticleHtml(art, startIdx + i);
+        paper.appendChild(tmp.firstElementChild);
+      });
+    }
+    return arts.length;
+  }
+
+  // ── Switch to a specific newspaper page (sidebar click) ──────────────────────
   function selectPage(idx) {
     if (idx < 0 || idx >= _currentPages.length) return;
     _currentPageIdx = idx;
@@ -633,25 +773,18 @@ JS = r"""
       el.classList.toggle('active', i === idx);
     });
 
-    // Replace article section with this page's articles
-    const paper = document.querySelector('.paper');
-    if (!paper) return;
-    paper.querySelectorAll('.art, .no-articles').forEach(el => el.remove());
-
-    const articles = pg.articles || [];
-    if (articles.length === 0) {
-      const msg = document.createElement('div');
-      msg.className = 'no-articles';
-      msg.textContent = 'இந்த பக்கத்தில் செய்திகள் கிடைக்கவில்லை.';
-      paper.appendChild(msg);
+    // Scroll to the page section if it exists, else re-render this page only
+    const anchor = document.getElementById('page-section-' + idx);
+    if (anchor) {
+      anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
-      articles.forEach((art, i) => {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = renderArticleHtml(art, i);
-        paper.appendChild(tmp.firstElementChild);
-      });
+      // Fallback: render this page alone
+      const paper = document.querySelector('.paper');
+      if (!paper) return;
+      paper.querySelectorAll('.art, .no-articles, .page-newspaper-wrap, .page-section').forEach(el => el.remove());
+      renderPageArticles(paper, pg, 0);
+      paper.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    paper.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // ── Build left sidebar from pages data ───────────────────────────────────────
@@ -782,10 +915,11 @@ JS = r"""
   }
 
   function renderArticleHtml(art, idx) {
-    const headline = cleanText(art.headline || '');
-    const body     = art.body || '';
-    const sid      = art.story_id || '';
-    const cols     = idx === 0 ? 'c3' : 'c2';
+    const headline   = cleanText(art.headline || '');
+    const body       = art.body || '';
+    const sid        = art.story_id || '';
+    const cols       = idx === 0 ? 'c3' : 'c2';
+    const imageUrls  = Array.isArray(art.image_urls) ? art.image_urls.filter(Boolean) : [];
     const { main, decks, intro } = parseHeadline(headline);
 
     const deckHtml  = decks.length
@@ -794,13 +928,16 @@ JS = r"""
     const introHtml = intro ? `<p class="intro">${escHtml(intro)}</p>` : '';
     const bodyHtml  = renderBody(body);
 
-    return `
-    <article class="art" id="s${escHtml(sid)}">
-      <div class="hl-block">
-        <h1 class="mhl">${escHtml(main)}</h1>
-        ${deckHtml}
-        ${introHtml}
-      </div>
+    // Build image section — real photo(s) if available, SVG placeholder otherwise
+    let imgHtml;
+    if (imageUrls.length > 0) {
+      imgHtml = imageUrls.map(url => `
+      <figure class="art-img-real" data-sid="${escHtml(sid)}">
+        <img src="${escHtml(url)}" alt="Story ${escHtml(sid)}" class="art-photo"
+             onerror="this.closest('figure').style.display='none'" />
+      </figure>`).join('');
+    } else {
+      imgHtml = `
       <div class="art-img" data-sid="${escHtml(sid)}">
         <div class="img-ph">
           <svg viewBox="0 0 120 70" xmlns="http://www.w3.org/2000/svg">
@@ -810,7 +947,17 @@ JS = r"""
           </svg>
           <p>செய்தி படம் &nbsp;·&nbsp; Story ${escHtml(sid)}</p>
         </div>
+      </div>`;
+    }
+
+    return `
+    <article class="art" id="s${escHtml(sid)}">
+      <div class="hl-block">
+        <h1 class="mhl">${escHtml(main)}</h1>
+        ${deckHtml}
+        ${introHtml}
       </div>
+      ${imgHtml}
       <div class="body ${cols}">
         ${bodyHtml}
       </div>
@@ -829,54 +976,49 @@ JS = r"""
         `<span>${escHtml(date)}</span>`;
     }
 
-    // Update nameplate meta
+    // Update nameplate meta (no brand names)
     const npMeta = paper.querySelector('.np-meta');
     if (npMeta) {
       npMeta.innerHTML =
-        `<strong>${escHtml(date)} | Daily Thanthi</strong><br/>` +
-        `${escHtml(editionName)} Edition &nbsp;|&nbsp; www.dailythanthi.com`;
+        `<strong>${escHtml(date)}</strong><br/>${escHtml(editionName)} Edition`;
     }
 
-    // Remove old articles
-    paper.querySelectorAll('.art, .no-articles').forEach(el => el.remove());
+    // Clear all old content
+    paper.querySelectorAll('.art, .no-articles, .page-newspaper-wrap, .page-section').forEach(el => el.remove());
 
     if (pages && pages.length > 0) {
-      // Page-aware mode: wire up sidebar + dropdown, show page 1 articles
+      // Page-aware mode: wire up sidebar + dropdown
       _currentPages = pages;
       _currentPageIdx = 0;
       renderPageSidebar(pages);
       renderPageDropdown(pages);
-      const firstLabel = pages[0].label || 'news 1';
       const lbl = document.getElementById('cur-page-label');
-      if (lbl) lbl.textContent = firstLabel;
-      // Render page 1 articles
-      const pg1Arts = pages[0].articles || [];
-      if (pg1Arts.length === 0) {
+      if (lbl) lbl.textContent = pages[0].label || 'news 1';
+
+      // Render ALL pages' articles in one continuous scrollable view
+      let artCounter = 0;
+      pages.forEach((pg, pgIdx) => {
+        // Section anchor for sidebar navigation
+        const section = document.createElement('div');
+        section.id = 'page-section-' + pgIdx;
+        section.className = 'page-section';
+        paper.appendChild(section);
+        artCounter += renderPageArticles(paper, pg, artCounter);
+      });
+    } else {
+      // Flat mode (no pages): render all articles directly
+      if (!articles || articles.length === 0) {
         const msg = document.createElement('div');
         msg.className = 'no-articles';
-        msg.textContent = 'இந்த பக்கத்தில் செய்திகள் கிடைக்கவில்லை.';
+        msg.textContent = 'இந்த பதிப்பிற்கான செய்திகள் கிடைக்கவில்லை. (No articles found)';
         paper.appendChild(msg);
       } else {
-        pg1Arts.forEach((art, idx) => {
+        articles.forEach((art, idx) => {
           const tmp = document.createElement('div');
           tmp.innerHTML = renderArticleHtml(art, idx);
           paper.appendChild(tmp.firstElementChild);
         });
       }
-    } else {
-      // Flat mode (no pages): render all articles
-      if (!articles || articles.length === 0) {
-        const msg = document.createElement('div');
-        msg.className = 'no-articles';
-        msg.textContent = 'இந்த பதிப்பிற்கான செய்திகள் கிடைக்கவில்லை. (No articles found for this edition.)';
-        paper.appendChild(msg);
-        return;
-      }
-      articles.forEach((art, idx) => {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = renderArticleHtml(art, idx);
-        paper.appendChild(tmp.firstElementChild);
-      });
     }
 
     paper.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -970,11 +1112,19 @@ JS = r"""
       const data = await resp.json();
       hideLoading();
       renderAllArticles(data.articles, name, data.date || EDATE, data.pages || []);
-      // Track state and enable PDF download button
+      // Track state and enable download buttons
       _currentEid = resolvedEid;
       _currentEditionName = name;
       const pdfBtn = document.getElementById('pdf-btn');
       if (pdfBtn) pdfBtn.classList.remove('disabled');
+      const clsBtn = document.getElementById('classified-btn');
+      if (clsBtn) clsBtn.classList.remove('disabled');
+      const tdrBtn = document.getElementById('tender-btn');
+      if (tdrBtn) tdrBtn.classList.remove('disabled');
+      const jsonAllBtn = document.getElementById('json-all-btn');
+      if (jsonAllBtn) jsonAllBtn.classList.remove('disabled');
+      const clsImgBtn = document.getElementById('cls-img-btn');
+      if (clsImgBtn) clsImgBtn.classList.remove('disabled');
       const pgCount  = (data.pages  || []).length;
       const artCount = (data.articles || []).length;
       const msg = pgCount > 0
@@ -985,6 +1135,303 @@ JS = r"""
       hideLoading();
       showToast('பிழை: ' + err.message, true);
     }
+  }
+
+  // ── Classifieds & Tenders JSON export ────────────────────────────────────────
+
+  // "வரி விளம்பரங்கள்" uses plural suffix -ங்கள், so match the ROOT "வரி விளம்பர"
+  // Page label "தகவல்,வரி" is the classified ads page in Daily Thanthi.
+  const _CLS_LABEL_KEYWORDS = [
+    'தகவல்',         // matches "தகவல்,வரி" (the classified ads page label)
+    'வரி விளம்பர',   // matches வரி விளம்பரங்கள், வரி விளம்பரம், வரி விளம்பர 2 …
+    'வரிவிளம்பர',    // no-space variant
+    'classified', 'advertisement',
+  ];
+
+  const _TDR_LABEL_KEYWORDS = [
+    'டெண்டர்', 'ஒப்பந்தப்புள்ளி', 'ஒப்பந்தம்', 'கொள்முதல்',
+    'tender', 'tenders', 'quotation', 'bid', 'procurement',
+    'notice inviting tender', 'nit ',
+  ];
+
+  function _kwMatch(text, kwList) {
+    const lo = (text || '').toLowerCase();
+    return kwList.some(k => lo.includes(k.toLowerCase()));
+  }
+
+  // Label-ONLY match — classified/tender pages have no [storyid] articles
+  function _pageLabelMatchesCls(pg) { return _kwMatch(pg.label, _CLS_LABEL_KEYWORDS); }
+  function _pageLabelMatchesTdr(pg) { return _kwMatch(pg.label, _TDR_LABEL_KEYWORDS); }
+
+  // Full match (label OR article content) for JSON fallback
+  const _CLS_KEYWORDS = [..._CLS_LABEL_KEYWORDS,
+    'வர்த்தகம்', 'வீடு', 'நிலம்', 'வேலை', 'வேலைவாய்ப்பு',
+    'பொது அறிவிப்பு', 'சட்ட அறிவிப்பு', 'ஏலம்', 'திருமண', 'வணிக',
+    'employment', 'property', 'notice', 'matrimonial',
+    'auction', 'public notice', 'legal notice', 'sale',
+  ];
+  const _TDR_KEYWORDS = [..._TDR_LABEL_KEYWORDS,
+    'expression of interest', 'e-tender', 'rfp', 'rfq', 'request for proposal',
+  ];
+
+  function _pageMatchesCls(pg) {
+    if (_pageLabelMatchesCls(pg)) return true;
+    return (pg.articles || []).some(a =>
+      _kwMatch(a.headline, _CLS_KEYWORDS) || _kwMatch(a.body, _CLS_KEYWORDS)
+    );
+  }
+  function _pageMatchesTdr(pg) {
+    if (_pageLabelMatchesTdr(pg)) return true;
+    return (pg.articles || []).some(a =>
+      _kwMatch(a.headline, _TDR_KEYWORDS) || _kwMatch(a.body, _TDR_KEYWORDS)
+    );
+  }
+  function _artMatchesCls(art) {
+    return _kwMatch(art.headline, _CLS_KEYWORDS) || _kwMatch(art.body, _CLS_KEYWORDS);
+  }
+  function _artMatchesTdr(art) {
+    return _kwMatch(art.headline, _TDR_KEYWORDS) || _kwMatch(art.body, _TDR_KEYWORDS);
+  }
+
+  function _downloadJsonFile(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  }
+
+  function _buildExport(matchPageFn, matchArtFn, categoryLabel) {
+    const matchedPages = [];
+    _currentPages.forEach(pg => {
+      const isMatchPage = matchPageFn(pg);
+      const arts = (pg.articles || []);
+      const items = isMatchPage ? arts : arts.filter(a => matchArtFn(a));
+      if (items.length > 0) {
+        matchedPages.push({
+          page_label: pg.label || '',
+          pgid:       pg.pgid  || '',
+          page_type:  isMatchPage ? categoryLabel : 'news',
+          item_count: items.length,
+          items: items.map(a => ({
+            story_id:   a.story_id   || '',
+            headline:   a.headline   || '',
+            byline:     a.byline     || '',
+            dateline:   a.dateline   || '',
+            body:       a.body       || '',
+            image_urls: a.image_urls || [],
+          })),
+        });
+      }
+    });
+    const totalItems = matchedPages.reduce((s, p) => s + p.item_count, 0);
+    return {
+      edition:      _currentEditionName,
+      eid:          _currentEid,
+      date:         EDATE,
+      generated_at: new Date().toISOString(),
+      category:     categoryLabel,
+      total_pages:  matchedPages.length,
+      total_items:  totalItems,
+      pages:        matchedPages,
+    };
+  }
+
+  async function _downloadPageImagesPdf(labelMatchFn, categoryLabel, labelTamil) {
+    if (!_currentPages.length) { showToast('முதலில் ஒரு edition தேர்ந்தெடுக்கவும்.', true); return; }
+    showLoading(`${labelTamil} PDF தயாரிக்கிறது...`);
+    try {
+      const dateStr = EDATE.replace(/\//g, '-');
+      const edStr   = _currentEditionName.replace(/\s+/g, '_');
+
+      const imgPages  = _currentPages
+        .filter(pg => labelMatchFn(pg) && (pg.highres_url || '').trim())
+        .map(pg => ({ url: pg.highres_url.trim(), label: pg.label || '' }));
+
+      const noUrlPages = _currentPages
+        .filter(pg => labelMatchFn(pg) && !(pg.highres_url || '').trim())
+        .map(pg => pg.label || pg.pgid || '?');
+
+      if (noUrlPages.length && !imgPages.length) {
+        hideLoading();
+        showToast(
+          `${labelTamil} page found (${noUrlPages.join(', ')}) but no high-res URL. ` +
+          `Re-load edition to refresh.`, true
+        );
+        return;
+      }
+
+      if (imgPages.length > 0) {
+        const resp = await fetch('/api/scrape/page-images-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pages: imgPages, filename: `${categoryLabel}_${edStr}_${dateStr}.pdf` }),
+        });
+        if (!resp.ok) { const e = await resp.text(); throw new Error(e.slice(0, 300)); }
+        const blob = await resp.blob();
+        const dlUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = dlUrl; a.download = `${categoryLabel}_${edStr}_${dateStr}.pdf`;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(dlUrl);
+        hideLoading();
+        showToast(`${labelTamil} PDF — ${imgPages.length} page(s): ${imgPages.map(p=>p.label).join(', ')}`);
+      } else {
+        const allLabels = _currentPages.map(p => p.label || p.pgid).join(' | ');
+        hideLoading();
+        showToast(`இந்த edition-ல் ${labelTamil} page கண்டுபிடிக்கவில்லை.\nPages: ${allLabels}`, true);
+      }
+    } catch(err) { hideLoading(); showToast(`${labelTamil} பிழை: ` + err.message, true); }
+  }
+
+  function downloadClassifiedsJson() {
+    if (!_currentPages.length) { showToast('முதலில் ஒரு edition தேர்ந்தெடுக்கவும்.', true); return; }
+    // Use LABEL-only matching so that regular news pages are never included,
+    // even if an article body happens to mention a common Tamil keyword.
+    const data = _buildExport(_pageLabelMatchesCls, () => false, 'classified');
+    if (!data.total_items) { showToast('இந்த edition-ல் Classifieds கண்டுபிடிக்கவில்லை.', true); return; }
+    const dateStr = EDATE.replace(/\//g, '-');
+    const edStr   = _currentEditionName.replace(/\s+/g, '_');
+    _downloadJsonFile(data, `classifieds_${edStr}_${dateStr}.json`);
+    showToast(`Classifieds JSON — ${data.total_items} item(s) பதிவிறக்கம் தொடங்கியது!`);
+  }
+
+  function downloadTendersJson() {
+    if (!_currentPages.length) { showToast('முதலில் ஒரு edition தேர்ந்தெடுக்கவும்.', true); return; }
+    // Use LABEL-only matching — same reason as classifieds above.
+    const data = _buildExport(_pageLabelMatchesTdr, () => false, 'tender');
+    if (!data.total_items) { showToast('இந்த edition-ல் Tenders கண்டுபிடிக்கவில்லை.', true); return; }
+    const dateStr = EDATE.replace(/\//g, '-');
+    const edStr   = _currentEditionName.replace(/\s+/g, '_');
+    _downloadJsonFile(data, `tenders_${edStr}_${dateStr}.json`);
+    showToast(`Tenders JSON — ${data.total_items} item(s) பதிவிறக்கம் தொடங்கியது!`);
+  }
+
+  function _extractArticleData(el) {{
+    const hl = el.querySelector('h1.mhl') || el.querySelector('h1') || el.querySelector('h2') || el.querySelector('.headline');
+    const intro = el.querySelector('.intro');
+    const body  = el.querySelector('.body');
+    const dl    = el.querySelector('.dateline');
+    const byEl  = el.querySelector('.byline') || el.querySelector('.by');
+    let bodyText = '';
+    if (body) {{
+      bodyText = Array.from(body.childNodes)
+        .filter(n => !(n.classList && n.classList.contains('dateline')))
+        .map(n => n.textContent || '').join(' ').trim();
+    }}
+    if (intro && !bodyText.includes(intro.textContent.trim())) {{
+      bodyText = (intro.textContent.trim() + ' ' + bodyText).trim();
+    }}
+    return {{
+      story_id:   el.id ? el.id.replace(/^s/, '') : '',
+      headline:   hl ? hl.textContent.trim() : '',
+      byline:     byEl ? byEl.textContent.trim() : '',
+      dateline:   dl ? dl.textContent.trim() : '',
+      body:       bodyText,
+      image_urls: [],
+    }};
+  }}
+
+  function downloadAllJson() {{
+    const dateStr = EDATE.replace(/\//g, '-');
+    const edStr   = _currentEditionName.replace(/\s+/g, '_');
+    let allPages;
+    if (_currentPages.length > 0) {{
+      allPages = _currentPages.map(pg => ({{
+        page_label:   pg.label  || '',
+        pgid:         pg.pgid   || '',
+        highres_url:  pg.highres_url || '',
+        item_count:   (pg.articles || []).length,
+        items: (pg.articles || []).map(a => ({{
+          story_id:   a.story_id   || '',
+          headline:   a.headline   || '',
+          byline:     a.byline     || '',
+          dateline:   a.dateline   || '',
+          body:       a.body       || '',
+          image_urls: (a.image_urls || []).map(u => u.startsWith('data:') ? '[base64-image]' : u),
+        }})),
+      }}));
+    }} else {{
+      const paper = document.getElementById('paper') || document.body;
+      const arts = [];
+      paper.querySelectorAll('article.art').forEach(el => arts.push(_extractArticleData(el)));
+      if (!arts.length) {{ showToast('பதிவிறக்கம் செய்ய தரவு இல்லை.', true); return; }}
+      allPages = [{{ page_label: 'All Articles', pgid: '', highres_url: '', item_count: arts.length, items: arts }}];
+    }}
+    const data = {{
+      edition:        _currentEditionName,
+      eid:            _currentEid,
+      date:           EDATE,
+      generated_at:   new Date().toISOString(),
+      total_pages:    allPages.length,
+      total_articles: allPages.reduce((s, p) => s + p.item_count, 0),
+      pages: allPages,
+    }};
+    _downloadJsonFile(data, `edition_${{edStr}}_${{dateStr}}.json`);
+    showToast(`JSON — ${{data.total_articles}} articles, ${{data.total_pages}} pages பதிவிறக்கம் தொடங்கியது!`);
+  }}
+
+  // ── Classified Image Modal ───────────────────────────────────────────────────
+  function showClassifiedImages() {
+    if (!_currentPages.length) { showToast('முதலில் ஒரு edition தேர்ந்தெடுக்கவும்.', true); return; }
+    // Convert EDATE (DD/MM/YYYY) → YYYY-MM-DD for API
+    const [dd, mm, yyyy] = EDATE.split('/');
+    const apiDate = `${yyyy}-${mm}-${dd}`;
+    // Pass the already-discovered EID and EDATE so the backend skips GetEditionPages navigation
+    const params = new URLSearchParams({
+      edition: _currentEditionName,
+      date:    apiDate,
+    });
+    if (_currentEid) {
+      params.set('eid',   _currentEid);
+      params.set('edate', EDATE);   // DD/MM/YYYY as expected by the API
+    }
+    const url = API_BASE + '/api/scrape/classifieds-json?' + params.toString();
+    const modal = document.getElementById('cls-img-modal');
+    const body  = document.getElementById('cls-img-body');
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:#555">படங்களை ஏற்றுகிறது… (1–2 நிமிடங்கள் ஆகலாம்)</div>';
+    modal.style.display = 'flex';
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(data => {
+        const pages = data.classified_pages || [];
+        if (!pages.length) {
+          body.innerHTML = '<div style="text-align:center;padding:40px;color:#c00">இந்த edition-ல் வரி விவரங்கள் படங்கள் கிடைக்கவில்லை.</div>';
+          return;
+        }
+        let html = '';
+        pages.forEach((pg, i) => {
+          const label = pg.page_label || ('Page ' + (pg.page_no || i + 1));
+          html += `<div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #e5e7eb">`;
+          html += `<h3 style="font-size:13px;font-weight:700;color:#6b21a8;margin:0 0 10px">${label} — பக்கம் ${pg.page_no || i + 1}</h3>`;
+          if (pg.page_image_b64) {
+            html += `<div style="margin-bottom:10px">
+              <img src="data:image/jpeg;base64,${pg.page_image_b64}" style="max-width:100%;border:1px solid #ddd;border-radius:6px"/>
+              <br/><a href="data:image/jpeg;base64,${pg.page_image_b64}" download="classified_pagescan_${pg.page_no || i+1}.jpg"
+                style="font-size:11px;color:#6b21a8;font-weight:600">⬇ Download page scan</a>
+            </div>`;
+          }
+          (pg.ad_images || []).forEach((ad, j) => {
+            if (ad.image_b64) {
+              html += `<div style="margin-bottom:8px">
+                <div style="font-size:10px;color:#666;margin-bottom:3px">விளம்பரம் ${j + 1}${ad.caption ? ' — ' + ad.caption : ''}</div>
+                <img src="data:image/jpeg;base64,${ad.image_b64}" style="max-width:100%;border:1px solid #eee;border-radius:4px"/>
+              </div>`;
+            }
+          });
+          html += `</div>`;
+        });
+        body.innerHTML = html || '<div style="text-align:center;padding:40px;color:#c00">படங்கள் எதுவும் இல்லை.</div>';
+      })
+      .catch(err => {
+        body.innerHTML = `<div style="text-align:center;padding:40px;color:#c00">பிழை: ${err.message}</div>`;
+      });
+  }
+
+  function closeClsImgModal() {
+    document.getElementById('cls-img-modal').style.display = 'none';
+    document.getElementById('cls-img-body').innerHTML = '';
   }
 
   // ── Init ────────────────────────────────────────────────────────────────────
@@ -1041,7 +1488,7 @@ html = f'''<!DOCTYPE html>
       <div class="nav-page-dropdown" id="nav-page-dropdown"></div>
     </div>
   </div>
-  <div class="nav-center">dailythanthi.com</div>
+  <div class="nav-center">E-Paper Viewer</div>
   <div class="nav-right">
     <input type="text" placeholder="Search..." />
     <span>&#128269;</span>
@@ -1070,6 +1517,22 @@ html = f'''<!DOCTYPE html>
     <svg viewBox="0 0 24 24"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/></svg>
     Download PDF
   </div>
+  <div class="tool-btn classified-dl disabled" id="classified-btn" onclick="downloadClassifiedsJson()" title="Download Classifieds as JSON (select an edition first)">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+    Classifieds JSON
+  </div>
+  <div class="tool-btn cls-img-dl disabled" id="cls-img-btn" onclick="showClassifiedImages()" title="Show Classified page images — வரி விவரங்கள் படங்கள் (select an edition first)">
+    <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+    Classified Image
+  </div>
+  <div class="tool-btn tender-dl disabled" id="tender-btn" onclick="downloadTendersJson()" title="Download Tenders as JSON (select an edition first)">
+    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+    Tenders JSON
+  </div>
+  <div class="tool-btn json-dl disabled" id="json-all-btn" onclick="downloadAllJson()" title="Download entire edition as JSON (select an edition first)">
+    <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+    Download JSON
+  </div>
   <div class="tool-btn">
     <svg viewBox="0 0 24 24" fill="#555"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
     Write To Editor
@@ -1096,6 +1559,17 @@ html = f'''<!DOCTYPE html>
   </div>
 </div>
 
+<!-- ░░ CLASSIFIED IMAGE MODAL ░░ -->
+<div class="modal-overlay" id="cls-img-modal" style="z-index:1100;display:none">
+  <div class="modal-box" style="max-width:900px;width:95vw;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-hdr">
+      <span>வரி விவரங்கள் — Classified Images</span>
+      <button class="modal-close" onclick="closeClsImgModal()">&#x2715;</button>
+    </div>
+    <div id="cls-img-body" style="overflow-y:auto;padding:16px;flex:1"></div>
+  </div>
+</div>
+
 <!-- ░░ EDITION NOTICE / TOAST ░░ -->
 <div id="ed-notice" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
   background:#333;color:#fff;padding:10px 20px;border-radius:6px;font-size:10.5pt;
@@ -1111,10 +1585,10 @@ html = f'''<!DOCTYPE html>
 <div class="content-col">
 <div class="paper">
   <div class="nameplate">
-    <div class="np-title">தினத்தந்தி</div>
+    <div class="np-title">E-Paper</div>
     <div class="np-meta">
-      <strong>03 மார்ச் 2026 | திங்கள்</strong><br/>
-      Madurai Edition &nbsp;|&nbsp; www.dailythanthi.com
+      <strong>03 மார்ச் 2026</strong><br/>
+      Madurai Edition
     </div>
   </div>
   <div class="ed-bar">
@@ -1126,6 +1600,8 @@ html = f'''<!DOCTYPE html>
 
 </div><!-- /.paper -->
 </div><!-- /.content-col -->
+
+
 </div><!-- /.viewer-layout -->
 
 <script>

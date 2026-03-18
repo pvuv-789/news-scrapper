@@ -34,6 +34,11 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "pdfplumber>=0.11.9",
     "fpdf2>=2.7.9",
+    "anthropic>=0.84.0",
+    "google-generativeai>=0.8.6",
+    "google-genai>=1.67.0",
+    "pytesseract>=0.3.13",
+    "pillow>=12.1.1",
 ]
 
 [project.optional-dependencies]
