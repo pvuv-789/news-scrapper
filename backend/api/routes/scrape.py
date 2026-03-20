@@ -4211,15 +4211,29 @@ async def classifieds_ocr_pdf(request: ClassifiedsOcrRequest):
                     log.info(f"[OCR] Using OCR.space API for pic_id={pic_id}")
                     ocr_resp = await http.post(
                         "https://api.ocr.space/parse/image",
-                        data={"apikey": _ocr_key, "language": "tam", "isOverlayRequired": "false"},
+                        data={
+                            "apikey": _ocr_key,
+                            "language": "auto",
+                            "isOverlayRequired": "false",
+                            "scale": "true",
+                            "OCREngine": "2",
+                        },
                         files={"file": ("image.jpg", img_bytes, "image/jpeg")},
-                        timeout=30,
+                        timeout=60,
                     )
                     ocr_data = ocr_resp.json()
-                    parsed = ocr_data.get("ParsedResults", [])
-                    ocr_text = parsed[0].get("ParsedText", "").strip() if parsed else ""
+                    log.info(f"[OCR] raw response: IsErrored={ocr_data.get('IsErroredOnProcessing')} ExitCode={ocr_data.get('OCRExitCode')} ErrorMsg={ocr_data.get('ErrorMessage')}")
+                    parsed = ocr_data.get("ParsedResults") or []
+                    if parsed:
+                        exit_code = parsed[0].get("FileParseExitCode")
+                        err_msg   = parsed[0].get("ErrorMessage", "")
+                        if err_msg:
+                            log.warning(f"[OCR] ParsedResults error pic_id={pic_id}: {err_msg}")
+                        ocr_text = parsed[0].get("ParsedText", "").strip()
+                    else:
+                        ocr_text = ""
                     ocr_text = ocr_text or "(No text found)"
-                    log.info(f"[OCR] OCR.space success pic_id={pic_id} — {len(ocr_text)} chars")
+                    log.info(f"[OCR] OCR.space result pic_id={pic_id} — {len(ocr_text)} chars")
                 except Exception as exc:
                     log.warning(f"[OCR] OCR.space failed pic_id={pic_id}: {exc}")
                     ocr_text = f"(OCR failed: {exc})"
@@ -4442,15 +4456,28 @@ async def tenders_ocr_pdf(request: TendersOcrRequest):
                     log.info(f"[TENDERS OCR] Using OCR.space API for pic_id={pic_id}")
                     ocr_resp = await http.post(
                         "https://api.ocr.space/parse/image",
-                        data={"apikey": _ocr_key, "language": "tam", "isOverlayRequired": "false"},
+                        data={
+                            "apikey": _ocr_key,
+                            "language": "auto",
+                            "isOverlayRequired": "false",
+                            "scale": "true",
+                            "OCREngine": "2",
+                        },
                         files={"file": ("image.jpg", img_bytes, "image/jpeg")},
-                        timeout=30,
+                        timeout=60,
                     )
                     ocr_data = ocr_resp.json()
-                    parsed = ocr_data.get("ParsedResults", [])
-                    ocr_text = parsed[0].get("ParsedText", "").strip() if parsed else ""
+                    log.info(f"[TENDERS OCR] raw response: IsErrored={ocr_data.get('IsErroredOnProcessing')} ExitCode={ocr_data.get('OCRExitCode')} ErrorMsg={ocr_data.get('ErrorMessage')}")
+                    parsed = ocr_data.get("ParsedResults") or []
+                    if parsed:
+                        err_msg  = parsed[0].get("ErrorMessage", "")
+                        if err_msg:
+                            log.warning(f"[TENDERS OCR] ParsedResults error pic_id={pic_id}: {err_msg}")
+                        ocr_text = parsed[0].get("ParsedText", "").strip()
+                    else:
+                        ocr_text = ""
                     ocr_text = ocr_text or "(No text found)"
-                    log.info(f"[TENDERS OCR] OCR.space success pic_id={pic_id} — {len(ocr_text)} chars")
+                    log.info(f"[TENDERS OCR] result pic_id={pic_id} — {len(ocr_text)} chars")
                 except Exception as exc:
                     log.warning(f"[TENDERS OCR] OCR.space failed pic_id={pic_id}: {exc}")
                     ocr_text = f"(OCR failed: {exc})"
