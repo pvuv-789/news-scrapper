@@ -4186,71 +4186,63 @@ async def classifieds_ocr_pdf(request: ClassifiedsOcrRequest):
     if not request.images:
         raise HTTPException(status_code=400, detail="No images provided")
 
-    results: list[dict] = []
+    async def _ocr_one(http_client: httpx.AsyncClient, img: dict) -> dict:
+        pic_id    = str(img.get("pic_id", ""))
+        image_url = str(img.get("image_url", ""))
+        if not image_url:
+            return {"pic_id": pic_id, "text": ""}
 
-    async with httpx.AsyncClient(headers=_CLASSIFIED_HEADERS, timeout=30) as http:
-        for img in request.images:
-            pic_id    = str(img.get("pic_id", ""))
-            image_url = str(img.get("image_url", ""))
-            if not image_url:
-                continue
+        # Download
+        try:
+            img_resp = await http_client.get(image_url)
+            img_resp.raise_for_status()
+            img_bytes = img_resp.content
+        except Exception as exc:
+            log.warning(f"[OCR] download failed pic_id={pic_id}: {exc}")
+            return {"pic_id": pic_id, "text": f"(Image download failed: {exc})"}
 
-            # Download image
+        if _ocr_key:
             try:
-                img_resp = await http.get(image_url)
-                img_resp.raise_for_status()
-                img_bytes = img_resp.content
+                ocr_resp = await http_client.post(
+                    "https://api.ocr.space/parse/image",
+                    data={
+                        "apikey": _ocr_key,
+                        "language": "auto",
+                        "isOverlayRequired": "false",
+                        "scale": "true",
+                        "OCREngine": "1",
+                    },
+                    files={"file": ("image.jpg", img_bytes, "image/jpeg")},
+                    timeout=30,
+                )
+                ocr_data = ocr_resp.json()
+                if ocr_data.get("IsErroredOnProcessing"):
+                    log.warning(f"[OCR] API error pic_id={pic_id}: {ocr_data.get('ErrorMessage')}")
+                parsed   = ocr_data.get("ParsedResults") or []
+                ocr_text = parsed[0].get("ParsedText", "").strip() if parsed else ""
+                ocr_text = ocr_text or "(No text found)"
+                log.info(f"[OCR] pic_id={pic_id} — {len(ocr_text)} chars")
             except Exception as exc:
-                log.warning(f"[OCR] download failed pic_id={pic_id}: {exc}")
-                results.append({"pic_id": pic_id, "text": f"(Image download failed: {exc})"})
-                continue
+                log.warning(f"[OCR] OCR.space failed pic_id={pic_id}: {exc}")
+                ocr_text = f"(OCR failed: {exc})"
+        else:
+            try:
+                pil_img  = await asyncio.to_thread(lambda b: Image.open(io.BytesIO(b)), img_bytes)
+                ocr_text = await asyncio.to_thread(
+                    pytesseract.image_to_string, pil_img, lang="tam+eng"
+                )
+                ocr_text = ocr_text.strip() or "(No text found)"
+            except Exception as exc:
+                log.warning(f"[OCR] Tesseract failed pic_id={pic_id}: {exc}")
+                ocr_text = f"(OCR failed: {exc})"
 
-            if _ocr_key:
-                # Production (Render): use OCR.space API directly
-                try:
-                    log.info(f"[OCR] Using OCR.space API for pic_id={pic_id}")
-                    ocr_resp = await http.post(
-                        "https://api.ocr.space/parse/image",
-                        data={
-                            "apikey": _ocr_key,
-                            "language": "auto",
-                            "isOverlayRequired": "false",
-                            "scale": "true",
-                            "OCREngine": "2",
-                        },
-                        files={"file": ("image.jpg", img_bytes, "image/jpeg")},
-                        timeout=60,
-                    )
-                    ocr_data = ocr_resp.json()
-                    log.info(f"[OCR] raw response: IsErrored={ocr_data.get('IsErroredOnProcessing')} ExitCode={ocr_data.get('OCRExitCode')} ErrorMsg={ocr_data.get('ErrorMessage')}")
-                    parsed = ocr_data.get("ParsedResults") or []
-                    if parsed:
-                        exit_code = parsed[0].get("FileParseExitCode")
-                        err_msg   = parsed[0].get("ErrorMessage", "")
-                        if err_msg:
-                            log.warning(f"[OCR] ParsedResults error pic_id={pic_id}: {err_msg}")
-                        ocr_text = parsed[0].get("ParsedText", "").strip()
-                    else:
-                        ocr_text = ""
-                    ocr_text = ocr_text or "(No text found)"
-                    log.info(f"[OCR] OCR.space result pic_id={pic_id} — {len(ocr_text)} chars")
-                except Exception as exc:
-                    log.warning(f"[OCR] OCR.space failed pic_id={pic_id}: {exc}")
-                    ocr_text = f"(OCR failed: {exc})"
-            else:
-                # Local: use Tesseract
-                try:
-                    pil_img  = await asyncio.to_thread(lambda b: Image.open(io.BytesIO(b)), img_bytes)
-                    ocr_text = await asyncio.to_thread(
-                        pytesseract.image_to_string, pil_img, lang="tam+eng"
-                    )
-                    ocr_text = ocr_text.strip() or "(No text found)"
-                except Exception as exc:
-                    log.warning(f"[OCR] Tesseract failed pic_id={pic_id}: {exc}")
-                    ocr_text = f"(OCR failed: {exc})"
+        return {"pic_id": pic_id, "text": ocr_text}
 
-            results.append({"pic_id": pic_id, "text": ocr_text})
-            log.info(f"[OCR] pic_id={pic_id} — {len(ocr_text)} chars extracted")
+    # Process all images concurrently — avoids sequential timeout on Render
+    async with httpx.AsyncClient(headers=_CLASSIFIED_HEADERS, timeout=40) as http:
+        tasks = [_ocr_one(http, img) for img in request.images]
+        results = await asyncio.gather(*tasks)
+    results = [r for r in results if r.get("pic_id")]
 
     # ── Build PDF via Playwright (correct Tamil shaping) ───────────────────────
     import html as _html
@@ -4433,67 +4425,62 @@ async def tenders_ocr_pdf(request: TendersOcrRequest):
     if not request.images:
         raise HTTPException(status_code=400, detail="No images provided")
 
-    results: list[dict] = []
+    async def _ocr_one_tender(http_client: httpx.AsyncClient, img: dict) -> dict:
+        pic_id    = str(img.get("pic_id", ""))
+        image_url = str(img.get("image_url", ""))
+        if not image_url:
+            return {"pic_id": pic_id, "text": ""}
 
-    async with httpx.AsyncClient(headers=_CLASSIFIED_HEADERS, timeout=30) as http:
-        for img in request.images:
-            pic_id    = str(img.get("pic_id", ""))
-            image_url = str(img.get("image_url", ""))
-            if not image_url:
-                continue
+        try:
+            img_resp = await http_client.get(image_url)
+            img_resp.raise_for_status()
+            img_bytes = img_resp.content
+        except Exception as exc:
+            log.warning(f"[TENDERS OCR] download failed pic_id={pic_id}: {exc}")
+            return {"pic_id": pic_id, "text": f"(Image download failed: {exc})"}
 
+        if _ocr_key:
             try:
-                img_resp = await http.get(image_url)
-                img_resp.raise_for_status()
-                img_bytes = img_resp.content
+                ocr_resp = await http_client.post(
+                    "https://api.ocr.space/parse/image",
+                    data={
+                        "apikey": _ocr_key,
+                        "language": "auto",
+                        "isOverlayRequired": "false",
+                        "scale": "true",
+                        "OCREngine": "1",
+                    },
+                    files={"file": ("image.jpg", img_bytes, "image/jpeg")},
+                    timeout=30,
+                )
+                ocr_data = ocr_resp.json()
+                if ocr_data.get("IsErroredOnProcessing"):
+                    log.warning(f"[TENDERS OCR] API error pic_id={pic_id}: {ocr_data.get('ErrorMessage')}")
+                parsed   = ocr_data.get("ParsedResults") or []
+                ocr_text = parsed[0].get("ParsedText", "").strip() if parsed else ""
+                ocr_text = ocr_text or "(No text found)"
+                log.info(f"[TENDERS OCR] pic_id={pic_id} — {len(ocr_text)} chars")
             except Exception as exc:
-                log.warning(f"[TENDERS OCR] download failed pic_id={pic_id}: {exc}")
-                results.append({"pic_id": pic_id, "text": f"(Image download failed: {exc})"})
-                continue
+                log.warning(f"[TENDERS OCR] OCR.space failed pic_id={pic_id}: {exc}")
+                ocr_text = f"(OCR failed: {exc})"
+        else:
+            try:
+                pil_img  = await asyncio.to_thread(lambda b: Image.open(io.BytesIO(b)), img_bytes)
+                ocr_text = await asyncio.to_thread(
+                    pytesseract.image_to_string, pil_img, lang="tam+eng"
+                )
+                ocr_text = ocr_text.strip() or "(No text found)"
+            except Exception as exc:
+                log.warning(f"[TENDERS OCR] Tesseract failed pic_id={pic_id}: {exc}")
+                ocr_text = f"(OCR failed: {exc})"
 
-            if _ocr_key:
-                try:
-                    log.info(f"[TENDERS OCR] Using OCR.space API for pic_id={pic_id}")
-                    ocr_resp = await http.post(
-                        "https://api.ocr.space/parse/image",
-                        data={
-                            "apikey": _ocr_key,
-                            "language": "auto",
-                            "isOverlayRequired": "false",
-                            "scale": "true",
-                            "OCREngine": "2",
-                        },
-                        files={"file": ("image.jpg", img_bytes, "image/jpeg")},
-                        timeout=60,
-                    )
-                    ocr_data = ocr_resp.json()
-                    log.info(f"[TENDERS OCR] raw response: IsErrored={ocr_data.get('IsErroredOnProcessing')} ExitCode={ocr_data.get('OCRExitCode')} ErrorMsg={ocr_data.get('ErrorMessage')}")
-                    parsed = ocr_data.get("ParsedResults") or []
-                    if parsed:
-                        err_msg  = parsed[0].get("ErrorMessage", "")
-                        if err_msg:
-                            log.warning(f"[TENDERS OCR] ParsedResults error pic_id={pic_id}: {err_msg}")
-                        ocr_text = parsed[0].get("ParsedText", "").strip()
-                    else:
-                        ocr_text = ""
-                    ocr_text = ocr_text or "(No text found)"
-                    log.info(f"[TENDERS OCR] result pic_id={pic_id} — {len(ocr_text)} chars")
-                except Exception as exc:
-                    log.warning(f"[TENDERS OCR] OCR.space failed pic_id={pic_id}: {exc}")
-                    ocr_text = f"(OCR failed: {exc})"
-            else:
-                try:
-                    pil_img  = await asyncio.to_thread(lambda b: Image.open(io.BytesIO(b)), img_bytes)
-                    ocr_text = await asyncio.to_thread(
-                        pytesseract.image_to_string, pil_img, lang="tam+eng"
-                    )
-                    ocr_text = ocr_text.strip() or "(No text found)"
-                except Exception as exc:
-                    log.warning(f"[TENDERS OCR] Tesseract failed pic_id={pic_id}: {exc}")
-                    ocr_text = f"(OCR failed: {exc})"
+        return {"pic_id": pic_id, "text": ocr_text}
 
-            results.append({"pic_id": pic_id, "text": ocr_text})
-            log.info(f"[TENDERS OCR] pic_id={pic_id} — {len(ocr_text)} chars extracted")
+    # Process all images concurrently — avoids sequential timeout on Render
+    async with httpx.AsyncClient(headers=_CLASSIFIED_HEADERS, timeout=40) as http:
+        tasks = [_ocr_one_tender(http, img) for img in request.images]
+        results = await asyncio.gather(*tasks)
+    results = [r for r in results if r.get("pic_id")]
 
     import html as _html
 
