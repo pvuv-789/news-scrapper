@@ -4171,11 +4171,13 @@ async def classifieds_ocr_pdf(request: ClassifiedsOcrRequest):
 
     log = logging.getLogger(__name__)
 
-    import os
+    import os, shutil
     if os.name == "nt":
         pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     else:
-        pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+        # Resolve actual binary location (handles Render and other Linux envs)
+        tesseract_bin = shutil.which("tesseract") or "/usr/bin/tesseract"
+        pytesseract.pytesseract.tesseract_cmd = tesseract_bin
 
     if not request.images:
         raise HTTPException(status_code=400, detail="No images provided")
