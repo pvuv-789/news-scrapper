@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Thanthi — Tender Notices</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid #334155;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .header-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #f8fafc;
+      white-space: nowrap;
+    }
+    .header-sub {
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+
+    /* ── URL Input Form ── */
+    .url-form {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+      min-width: 260px;
+      flex-wrap: wrap;
+    }
+    .url-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #f1f5f9;
+      font-size: 0.8rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .url-input:focus { border-color: #6366f1; }
+    .url-input::placeholder { color: #475569; }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: opacity 0.2s, background 0.2s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-indigo  { background: #6366f1; color: #fff; }
+    .btn-indigo:hover:not(:disabled) { background: #4f46e5; }
+    .btn-slate   { background: #475569; color: #fff; }
+    .btn-slate:hover:not(:disabled) { background: #334155; }
+    .btn-emerald { background: #059669; color: #fff; }
+    .btn-emerald:hover:not(:disabled) { background: #047857; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      padding: 10px 24px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge-green  { background: #064e3b; color: #6ee7b7; }
+    .badge-yellow { background: #451a03; color: #fcd34d; }
+    .badge-red    { background: #450a0a; color: #fca5a5; }
+    .badge-blue   { background: #1e3a5f; color: #93c5fd; }
+
+    /* ── Message box ── */
+    .message-box {
+      margin: 40px auto;
+      max-width: 520px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+    }
+    .message-box h2 { font-size: 1.1rem; margin-bottom: 8px; color: #f1f5f9; }
+    .message-box p  { font-size: 0.85rem; color: #94a3b8; line-height: 1.6; }
+    .message-box code {
+      display: block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #0f172a;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      color: #7dd3fc;
+      word-break: break-all;
+    }
+
+    /* ── Spinner ── */
+    .spinner-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 24px;
+      gap: 16px;
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #334155;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Gallery ── */
+    .gallery-header {
+      padding: 20px 24px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .gallery-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .gallery-meta { font-size: 0.78rem; color: #64748b; }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      padding: 16px 24px 40px;
+    }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s;
+      cursor: pointer;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      border-color: #6366f1;
+    }
+    .card img {
+      width: 100%;
+      display: block;
+      background: #0f172a;
+      min-height: 180px;
+      object-fit: contain;
+    }
+    .card-footer {
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: #64748b;
+    }
+    .card-footer a {
+      color: #818cf8;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .card-footer a:hover { color: #a5b4fc; }
+
+    /* ── Lightbox ── */
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+    }
+    .lightbox.active { display: flex; }
+    .lightbox img {
+      max-width: 96vw;
+      max-height: 92vh;
+      border-radius: 8px;
+      box-shadow: 0 0 60px rgba(0,0,0,0.8);
+    }
+    .lightbox-close {
+      position: fixed;
+      top: 16px; right: 20px;
+      font-size: 2rem;
+      color: #e2e8f0;
+      cursor: pointer;
+      line-height: 1;
+      z-index: 1000;
+      background: none;
+      border: none;
+      transition: color 0.2s;
+    }
+    .lightbox-close:hover { color: #f87171; }
+    .lightbox-prev, .lightbox-next {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 2rem;
+      color: #e2e8f0;
+      cursor: pointer;
+      background: rgba(0,0,0,0.5);
+      border: none;
+      border-radius: 8px;
+      padding: 12px 10px;
+      z-index: 1000;
+      transition: background 0.2s;
+    }
+    .lightbox-prev { left: 8px; }
+    .lightbox-next { right: 8px; }
+    .lightbox-prev:hover, .lightbox-next:hover { background: rgba(99,102,241,0.7); }
+    .lightbox-counter {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.8rem;
+      color: #94a3b8;
+      background: rgba(0,0,0,0.6);
+      padding: 4px 14px;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="header-title">Daily Thanthi — Tender Notices</div>
+      <div class="header-sub" id="meta-label">Loading…</div>
+    </div>
+
+    <!-- URL input to load a different page -->
+    <div class="url-form">
+      <input
+        id="url-input"
+        class="url-input"
+        type="text"
+        placeholder="Paste ArticleView URL  (…?eid=77&edate=16/03/2026&pgid=101846969)"
+        title="Paste a full ArticleView URL to load tender images for that page"
+      />
+      <button class="btn btn-indigo" onclick="loadFromInput()">Load</button>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar" id="status-bar" style="display:none">
+    <span id="status-text"></span>
+  </div>
+
+  <!-- Main content -->
+  <div id="main-content">
+    <div class="spinner-wrap" id="spinner">
+      <div class="spinner"></div>
+      <span>Fetching tender images…</span>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">&#x2715;</button>
+    <button class="lightbox-prev" onclick="lbNav(-1)">&#8249;</button>
+    <img id="lb-img" src="" alt="" />
+    <button class="lightbox-next" onclick="lbNav(1)">&#8250;</button>
+    <div class="lightbox-counter" id="lb-counter"></div>
+  </div>
+
+<script>
+  const API_BASE = window.location.origin + '/api'
+
+  let _images      = []
+  let _lbIndex     = 0
+  let _currentPgid = ''
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const params  = new URLSearchParams(window.location.search)
+    const pgid    = params.get('pgid') || ''
+    const srcUrl  = params.get('source_url') || ''
+    const edition = params.get('edition') || ''
+    const date    = params.get('date') || ''
+    const eid     = params.get('eid') || ''
+
+    const parts = []
+    if (edition) parts.push(capitalize(edition))
+    if (date)    parts.push(date)
+    if (eid)     parts.push('EID ' + eid)
+    if (pgid)    parts.push('pgid ' + pgid)
+    document.getElementById('meta-label').textContent = parts.join('  •  ') || 'Daily Thanthi'
+
+    if (pgid) {
+      fetchImages(pgid)
+    } else if (srcUrl) {
+      const p = parsePgid(srcUrl)
+      if (p) fetchImages(p)
+      else   showError('Could not extract pgid from source_url parameter.')
+    } else {
+      showInstructions()
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape')     closeLightbox()
+      if (e.key === 'ArrowRight') lbNav(1)
+      if (e.key === 'ArrowLeft')  lbNav(-1)
+    })
+
+    if (srcUrl) document.getElementById('url-input').value = srcUrl
+    document.getElementById('url-input').addEventListener('keyup', e => {
+      if (e.key === 'Enter') loadFromInput()
+    })
+  })
+
+  function loadFromInput() {
+    const raw = document.getElementById('url-input').value.trim()
+    if (!raw) return
+    const pgid = parsePgid(raw)
+    if (!pgid) {
+      showStatus('Could not find pgid in the URL. Make sure it contains pgid=XXXXXXX', 'red')
+      return
+    }
+    const sp = new URLSearchParams(window.location.search)
+    sp.set('pgid', pgid)
+    sp.set('source_url', raw)
+    history.replaceState(null, '', '?' + sp.toString())
+    fetchImages(pgid)
+  }
+
+  function parsePgid(url) {
+    try {
+      const u = url.startsWith('http')
+        ? url
+        : 'https://epaper.dailythanthi.com/Home/ArticleView?' + url.replace(/^\?/, '')
+      const p = new URL(u).searchParams
+      return (p.get('pgid') || p.get('Pgid') || '').trim()
+    } catch { return '' }
+  }
+
+  async function fetchImages(pgid) {
+    showSpinner()
+    try {
+      const url  = API_BASE + '/scrape/tenders-images?pgid=' + encodeURIComponent(pgid)
+      const resp = await fetch(url)
+      if (!resp.ok) {
+        const txt = await resp.text()
+        throw new Error('HTTP ' + resp.status + ': ' + txt.slice(0, 200))
+      }
+      const data = await resp.json()
+      _images = data.images || []
+
+      _currentPgid = pgid
+      if (_images.length === 0) {
+        showStatus('No tender images found for pgid ' + pgid, 'yellow')
+        renderEmpty(pgid)
+      } else {
+        showStatus('pgid ' + pgid + '  —  ' + _images.length + ' image' + (_images.length !== 1 ? 's' : '') + ' found', 'green')
+        renderGallery(_images, pgid)
+      }
+    } catch (err) {
+      showStatus('Error: ' + err.message, 'red')
+      showError(err.message)
+    }
+  }
+
+  function showSpinner() {
+    document.getElementById('main-content').innerHTML =
+      '<div class="spinner-wrap"><div class="spinner"></div><span>Fetching tender images…</span></div>'
+  }
+
+  function renderGallery(images, pgid) {
+    const header =
+      '<div class="gallery-header">' +
+        '<div>' +
+          '<div class="gallery-title">Tender Notices</div>' +
+          '<div class="gallery-meta">pgid: ' + escHtml(pgid) + ' &nbsp;·&nbsp; ' + images.length + ' images</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+          '<button class="btn btn-slate" onclick="downloadAll()">&#x2B07; Download All</button>' +
+          '<button class="btn btn-emerald" id="ocr-btn" onclick="extractText()">&#x1F4C4; Text Extract</button>' +
+        '</div>' +
+      '</div>'
+
+    const cards = images.map(function(img, idx) {
+      return '<div class="card" onclick="openLightbox(' + idx + ')" title="Click to enlarge">' +
+        '<img src="' + escHtml(img.image_url) + '" alt="Tender notice ' + img.pic_id + '" loading="lazy" ' +
+          'onerror="this.style.opacity=\'0.3\'; this.alt=\'Failed to load\'" />' +
+        '<div class="card-footer">' +
+          '<span>pic_id: ' + img.pic_id + '</span>' +
+          '<a href="' + escHtml(img.image_url) + '" target="_blank" rel="noopener noreferrer" ' +
+             'onclick="event.stopPropagation()">Open &#8599;</a>' +
+        '</div>' +
+      '</div>'
+    }).join('')
+
+    document.getElementById('main-content').innerHTML = header + '<div class="gallery">' + cards + '</div>'
+  }
+
+  function renderEmpty(pgid) {
+    document.getElementById('main-content').innerHTML =
+      '<div class="message-box">' +
+        '<h2>No Images Found</h2>' +
+        '<p>No tender notice images (ObjectType 4) were found on page <strong>' + escHtml(pgid) + '</strong>.</p>' +
+        '<p style="margin-top:8px">Try a different pgid or ArticleView URL.</p>' +
+      '</div>'
+  }
+
+  function showError(msg) {
+    document.getElementById('main-content').innerHTML =
+      '<div class="message-box"><h2>Error</h2><p>' + escHtml(msg) + '</p></div>'
+  }
+
+  function showInstructions() {
+    document.getElementById('main-content').innerHTML =
+      '<div class="message-box">' +
+        '<h2>Paste an ArticleView URL to start</h2>' +
+        '<p>Copy the page URL from the Daily Thanthi epaper and paste it in the box above, then click <strong>Load</strong>.</p>' +
+        '<code>https://epaper.dailythanthi.com/Home/ArticleView?eid=77&amp;edate=16/03/2026&amp;pgid=101846969</code>' +
+        '<p style="margin-top:12px">The viewer fetches all image objects (ObjectType&nbsp;4) from that page.</p>' +
+      '</div>'
+  }
+
+  function showStatus(msg, level) {
+    var bar  = document.getElementById('status-bar')
+    var text = document.getElementById('status-text')
+    var cls  = { green: 'badge-green', yellow: 'badge-yellow', red: 'badge-red', blue: 'badge-blue' }[level] || 'badge-blue'
+    text.innerHTML = '<span class="badge ' + cls + '">' + escHtml(msg) + '</span>'
+    bar.style.display = 'flex'
+  }
+
+  function openLightbox(idx) {
+    _lbIndex = idx
+    updateLightbox()
+    document.getElementById('lightbox').classList.add('active')
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('active')
+  }
+  function lbNav(dir) {
+    if (!_images.length) return
+    _lbIndex = (_lbIndex + dir + _images.length) % _images.length
+    updateLightbox()
+  }
+  function updateLightbox() {
+    var img = _images[_lbIndex]
+    document.getElementById('lb-img').src = img.image_url
+    document.getElementById('lb-counter').textContent = (_lbIndex + 1) + ' / ' + _images.length
+  }
+
+  function downloadAll() {
+    if (!_images.length) return
+    _images.forEach(function(img, i) {
+      setTimeout(function() {
+        var a = document.createElement('a')
+        a.href     = img.image_url
+        a.download = 'tender_' + img.pic_id + '.jpg'
+        a.target   = '_blank'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      }, i * 200)
+    })
+  }
+
+  async function extractText() {
+    if (!_images.length) return
+    var btn = document.getElementById('ocr-btn')
+    if (!btn) return
+    btn.disabled = true
+    btn.textContent = '⏳ Extracting…'
+    showStatus('Running OCR on ' + _images.length + ' image(s) — this may take a moment…', 'blue')
+    try {
+      var resp = await fetch(API_BASE + '/scrape/tenders-ocr-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: _images, pgid: _currentPgid })
+      })
+      if (!resp.ok) {
+        var txt = await resp.text()
+        throw new Error('HTTP ' + resp.status + ': ' + txt.slice(0, 200))
+      }
+      var blob = await resp.blob()
+      var a = document.createElement('a')
+      a.href     = URL.createObjectURL(blob)
+      a.download = 'tenders_ocr_' + (_currentPgid || 'extract') + '.pdf'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(a.href)
+      showStatus('Text extraction complete — PDF downloaded.', 'green')
+    } catch (err) {
+      showStatus('OCR failed: ' + err.message, 'red')
+    } finally {
+      btn.disabled = false
+      btn.innerHTML = '&#x1F4C4; Text Extract'
+    }
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+  }
+  function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s }
+</script>
+</body>
+</html>

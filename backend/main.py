@@ -103,6 +103,22 @@ def create_app() -> FastAPI:
             )
         return FileResponse(_classifieds_html_path, media_type="text/html")
 
+    # Serve the tenders image viewer
+    _tenders_html_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "tenders_viewer.html",
+    )
+
+    @app.get("/viewer/tenders", tags=["Viewer"])
+    async def tenders_viewer():
+        """Serve the tender notices image viewer page."""
+        if not os.path.isfile(_tenders_html_path):
+            raise HTTPException(
+                status_code=404,
+                detail="Tenders viewer not found.",
+            )
+        return FileResponse(_tenders_html_path, media_type="text/html")
+
     return app
 
 

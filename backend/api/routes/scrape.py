@@ -4322,3 +4322,231 @@ async def classifieds_ocr_pdf(request: ClassifiedsOcrRequest):
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
+
+# ── Tenders Images ────────────────────────────────────────────────────────────
+
+@router.get("/tenders-images")
+async def get_tenders_images(
+    pgid: str = "",
+    source_url: str = "",
+):
+    """
+    Fetch tender notice images for a given page ID.
+    Same flow as classifieds-images — filters ObjectType == 4.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+
+    resolved_pgid = pgid.strip()
+
+    if source_url.strip() and not resolved_pgid:
+        from urllib.parse import parse_qs as _pqs
+        _qs = _pqs(urlparse(source_url.strip()).query)
+        resolved_pgid = (_qs.get("pgid") or _qs.get("Pgid") or [""])[0].strip()
+
+    if not resolved_pgid:
+        raise HTTPException(status_code=400, detail="pgid is required")
+
+    rect_url = f"{_EPAPER_BASE}/Home/getingRectangleObject?pageid={resolved_pgid}"
+
+    try:
+        async with httpx.AsyncClient(headers=_CLASSIFIED_HEADERS, timeout=30) as client:
+            rect_resp = await client.get(rect_url)
+            rect_resp.raise_for_status()
+            objects = rect_resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch page objects: {exc}")
+
+    pic_ids = [
+        item["ObjectId"]
+        for item in (objects if isinstance(objects, list) else [])
+        if item.get("ObjectType") == 4
+    ]
+    log.info(f"[TENDERS] pgid={resolved_pgid} — found {len(pic_ids)} images")
+
+    images = []
+    async with httpx.AsyncClient(headers=_CLASSIFIED_HEADERS, timeout=30) as client:
+        for pid in pic_ids:
+            detail_url = f"{_EPAPER_BASE}/Home/getpicturedetail?Pic_id={pid}"
+            try:
+                det = await client.get(detail_url)
+                det.raise_for_status()
+                detail = det.json()
+                img_url = detail.get("ImagePath", "").replace("\\", "/")
+                if img_url:
+                    images.append({"pic_id": pid, "image_url": img_url})
+            except Exception as exc:
+                log.warning(f"[TENDERS] pic_id={pid} detail failed: {exc}")
+
+    return {
+        "pgid": resolved_pgid,
+        "total_images": len(images),
+        "images": images,
+    }
+
+
+# ── Tenders OCR → PDF ─────────────────────────────────────────────────────────
+
+class TendersOcrRequest(BaseModel):
+    images: list[dict]   # [{"pic_id": str, "image_url": str}, ...]
+    pgid: str = ""
+
+
+@router.post("/tenders-ocr-pdf")
+async def tenders_ocr_pdf(request: TendersOcrRequest):
+    """
+    Download each tender notice image, extract text via OCR,
+    and return a single PDF with all extracted text (one page per image).
+    """
+    import logging
+    import os, shutil
+    import pytesseract
+    from PIL import Image
+    from core.config import get_settings
+
+    log = logging.getLogger(__name__)
+    _ocr_key = get_settings().ocr_space_api_key
+
+    if not _ocr_key:
+        if os.name == "nt":
+            pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        else:
+            tesseract_bin = shutil.which("tesseract") or "/usr/bin/tesseract"
+            pytesseract.pytesseract.tesseract_cmd = tesseract_bin
+
+    if not request.images:
+        raise HTTPException(status_code=400, detail="No images provided")
+
+    results: list[dict] = []
+
+    async with httpx.AsyncClient(headers=_CLASSIFIED_HEADERS, timeout=30) as http:
+        for img in request.images:
+            pic_id    = str(img.get("pic_id", ""))
+            image_url = str(img.get("image_url", ""))
+            if not image_url:
+                continue
+
+            try:
+                img_resp = await http.get(image_url)
+                img_resp.raise_for_status()
+                img_bytes = img_resp.content
+            except Exception as exc:
+                log.warning(f"[TENDERS OCR] download failed pic_id={pic_id}: {exc}")
+                results.append({"pic_id": pic_id, "text": f"(Image download failed: {exc})"})
+                continue
+
+            if _ocr_key:
+                try:
+                    log.info(f"[TENDERS OCR] Using OCR.space API for pic_id={pic_id}")
+                    ocr_resp = await http.post(
+                        "https://api.ocr.space/parse/image",
+                        data={"apikey": _ocr_key, "language": "tam", "isOverlayRequired": "false"},
+                        files={"file": ("image.jpg", img_bytes, "image/jpeg")},
+                        timeout=30,
+                    )
+                    ocr_data = ocr_resp.json()
+                    parsed = ocr_data.get("ParsedResults", [])
+                    ocr_text = parsed[0].get("ParsedText", "").strip() if parsed else ""
+                    ocr_text = ocr_text or "(No text found)"
+                    log.info(f"[TENDERS OCR] OCR.space success pic_id={pic_id} — {len(ocr_text)} chars")
+                except Exception as exc:
+                    log.warning(f"[TENDERS OCR] OCR.space failed pic_id={pic_id}: {exc}")
+                    ocr_text = f"(OCR failed: {exc})"
+            else:
+                try:
+                    pil_img  = await asyncio.to_thread(lambda b: Image.open(io.BytesIO(b)), img_bytes)
+                    ocr_text = await asyncio.to_thread(
+                        pytesseract.image_to_string, pil_img, lang="tam+eng"
+                    )
+                    ocr_text = ocr_text.strip() or "(No text found)"
+                except Exception as exc:
+                    log.warning(f"[TENDERS OCR] Tesseract failed pic_id={pic_id}: {exc}")
+                    ocr_text = f"(OCR failed: {exc})"
+
+            results.append({"pic_id": pic_id, "text": ocr_text})
+            log.info(f"[TENDERS OCR] pic_id={pic_id} — {len(ocr_text)} chars extracted")
+
+    import html as _html
+
+    pages_html = ""
+    for i, item in enumerate(results):
+        heading  = _html.escape(f"Image {i + 1}  —  pic_id: {item['pic_id']}")
+        body_txt = _html.escape(item["text"])
+        pages_html += (
+            f'<div class="pg">'
+            f'<h2>{heading}</h2>'
+            f'<pre>{body_txt}</pre>'
+            f'</div>'
+        )
+
+    full_html = f"""<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  body {{
+    font-family: "Nirmala UI", "Latha", "Arial Unicode MS", sans-serif;
+    font-size: 11pt;
+    margin: 0;
+    padding: 0;
+    color: #111;
+  }}
+  .pg {{
+    padding: 32px 40px 24px;
+    page-break-after: always;
+  }}
+  h2 {{
+    font-size: 13pt;
+    font-weight: bold;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 6px;
+  }}
+  pre {{
+    font-family: "Nirmala UI", "Latha", "Arial Unicode MS", sans-serif;
+    font-size: 11pt;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.7;
+    margin: 0;
+  }}
+</style>
+</head>
+<body>{pages_html}</body>
+</html>"""
+
+    def _render_pdf(html_str: str) -> bytes:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                ],
+            )
+            pg      = browser.new_page()
+            pg.set_content(html_str, wait_until="domcontentloaded")
+            data = pg.pdf(
+                format="A4",
+                margin={"top": "0px", "bottom": "0px", "left": "0px", "right": "0px"},
+                print_background=True,
+            )
+            browser.close()
+        return data
+
+    try:
+        pdf_bytes = await asyncio.to_thread(_render_pdf, full_html)
+    except Exception as exc:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}\n{traceback.format_exc()}")
+
+    filename = f"tenders_ocr_{request.pgid or 'extract'}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
