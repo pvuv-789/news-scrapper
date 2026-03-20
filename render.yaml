@@ -18,3 +18,5 @@ services:
         value: "0"
       - key: TESSDATA_PREFIX
         value: "/usr/share/tesseract-ocr/4.00/tessdata"
+      - key: OCR_SPACE_API_KEY
+        sync: false

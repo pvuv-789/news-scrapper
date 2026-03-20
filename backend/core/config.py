@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # ── Google Gemini ──────────────────────────────────────────────────────────
     gemini_api_key: str = ""
 
+    # ── OCR.space ──────────────────────────────────────────────────────────────
+    ocr_space_api_key: str = ""
+
     # ── CORS ───────────────────────────────────────────────────────────────────
     cors_origins: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 

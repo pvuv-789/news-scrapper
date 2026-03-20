@@ -4201,16 +4201,40 @@ async def classifieds_ocr_pdf(request: ClassifiedsOcrRequest):
                 results.append({"pic_id": pic_id, "text": f"(Image download failed: {exc})"})
                 continue
 
-            # OCR via Tesseract (Tamil + English)
+            # OCR via Tesseract (Tamil + English) — primary
+            ocr_text = None
             try:
                 pil_img  = await asyncio.to_thread(lambda b: Image.open(io.BytesIO(b)), img_bytes)
                 ocr_text = await asyncio.to_thread(
                     pytesseract.image_to_string, pil_img, lang="tam+eng"
                 )
-                ocr_text = ocr_text.strip() or "(No text found)"
+                ocr_text = ocr_text.strip() or None
             except Exception as exc:
                 log.warning(f"[OCR] Tesseract failed pic_id={pic_id}: {exc}")
-                ocr_text = f"(OCR failed: {exc})"
+
+            # Fallback: OCR.space API (used when Tesseract is unavailable on server)
+            if not ocr_text:
+                from core.config import get_settings
+                _ocr_key = get_settings().ocr_space_api_key
+                if _ocr_key:
+                    try:
+                        log.info(f"[OCR] Falling back to OCR.space for pic_id={pic_id}")
+                        ocr_resp = await http.post(
+                            "https://api.ocr.space/parse/image",
+                            data={"apikey": _ocr_key, "language": "tam", "isOverlayRequired": "false"},
+                            files={"file": ("image.jpg", img_bytes, "image/jpeg")},
+                            timeout=30,
+                        )
+                        ocr_data = ocr_resp.json()
+                        parsed = ocr_data.get("ParsedResults", [])
+                        ocr_text = parsed[0].get("ParsedText", "").strip() if parsed else ""
+                        ocr_text = ocr_text or "(No text found)"
+                        log.info(f"[OCR] OCR.space success pic_id={pic_id} — {len(ocr_text)} chars")
+                    except Exception as exc2:
+                        log.warning(f"[OCR] OCR.space failed pic_id={pic_id}: {exc2}")
+                        ocr_text = f"(OCR failed: {exc2})"
+                else:
+                    ocr_text = "(OCR unavailable: Tesseract not installed and OCR_SPACE_API_KEY not set)"
 
             results.append({"pic_id": pic_id, "text": ocr_text})
             log.info(f"[OCR] pic_id={pic_id} — {len(ocr_text)} chars extracted")
