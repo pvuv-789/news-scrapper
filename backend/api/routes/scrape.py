@@ -4169,10 +4169,11 @@ async def classifieds_ocr_pdf(request: ClassifiedsOcrRequest):
     import os, shutil
     import pytesseract
     from PIL import Image
-    from core.config import get_settings
 
     log = logging.getLogger(__name__)
-    _ocr_key = get_settings().ocr_space_api_key
+    # Read directly from env — most reliable on Render
+    _ocr_key = os.environ.get("OCR_SPACE_API_KEY", "").strip()
+    log.info(f"[OCR] API key present: {bool(_ocr_key)}")
 
     if not _ocr_key:
         # Local: configure Tesseract path
@@ -4402,10 +4403,11 @@ async def tenders_ocr_pdf(request: TendersOcrRequest):
     import os, shutil
     import pytesseract
     from PIL import Image
-    from core.config import get_settings
 
     log = logging.getLogger(__name__)
-    _ocr_key = get_settings().ocr_space_api_key
+    # Read directly from env — most reliable on Render
+    _ocr_key = os.environ.get("OCR_SPACE_API_KEY", "").strip()
+    log.info(f"[TENDERS OCR] API key present: {bool(_ocr_key)}")
 
     if not _ocr_key:
         if os.name == "nt":
