@@ -33,6 +33,7 @@ structlog>=24.1.0
 
 # Config / Security
 python-dotenv>=1.0.1
+python-multipart>=0.0.9
 
 # PDF & Image Processing
 pdfplumber>=0.11.9
