@@ -16,7 +16,7 @@ import httpx
 import json
 import pdfplumber
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -4566,3 +4566,107 @@ async def tenders_ocr_pdf(request: TendersOcrRequest):
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
+
+@router.post("/upload-pdf")
+async def upload_pdf_extract(file: UploadFile = File(...)):
+    """Accept a PDF file upload and return extracted text as JSON.
+
+    Works for both text-based and image-based (scanned) PDFs.
+    Text PDFs are parsed directly via pdfplumber; scanned pages are rendered
+    to images via PyMuPDF and then OCR-ed (OCR.space if API key is set,
+    otherwise Tesseract).
+    """
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+    pdf_bytes = await file.read()
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    try:
+        import shutil
+        import pytesseract
+        from PIL import Image as PilImage
+
+        _ocr_key = os.environ.get("OCR_SPACE_API_KEY", "").strip()
+        if not _ocr_key:
+            if os.name == "nt":
+                pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+            else:
+                pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or "/usr/bin/tesseract"
+
+        async def _ocr_page_bytes(img_bytes: bytes) -> str:
+            """Run OCR on a PNG image (bytes). Returns extracted text."""
+            if _ocr_key:
+                try:
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.post(
+                            "https://api.ocr.space/parse/image",
+                            data={
+                                "apikey": _ocr_key,
+                                "language": "auto",
+                                "isOverlayRequired": "false",
+                                "scale": "true",
+                                "OCREngine": "2",
+                            },
+                            files={"file": ("page.png", img_bytes, "image/png")},
+                        )
+                        data = resp.json()
+                        parsed = data.get("ParsedResults") or []
+                        return parsed[0].get("ParsedText", "").strip() if parsed else ""
+                except Exception as exc:
+                    log.warning(f"[upload-pdf OCR] OCR.space failed: {exc}")
+                    return ""
+            else:
+                try:
+                    pil_img = await asyncio.to_thread(
+                        lambda b: PilImage.open(io.BytesIO(b)), img_bytes
+                    )
+                    text = await asyncio.to_thread(
+                        pytesseract.image_to_string, pil_img, lang="tam+eng"
+                    )
+                    return text.strip()
+                except Exception as exc:
+                    log.warning(f"[upload-pdf OCR] Tesseract failed: {exc}")
+                    return ""
+
+        def _render_page_to_png(pdf_bytes: bytes, page_index: int) -> bytes:
+            """Render a single PDF page to PNG bytes using PyMuPDF."""
+            import fitz  # PyMuPDF
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            page = doc[page_index]
+            mat = fitz.Matrix(2.0, 2.0)  # 2x zoom → ~144 dpi, good for OCR
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            return pix.tobytes("png")
+
+        pages = []
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            total = len(pdf.pages)
+            for i, page in enumerate(pdf.pages, start=1):
+                text = (page.extract_text() or "").strip()
+
+                if not text:
+                    # Scanned/image page — render and OCR
+                    try:
+                        img_bytes = await asyncio.to_thread(
+                            _render_page_to_png, pdf_bytes, i - 1
+                        )
+                        text = await _ocr_page_bytes(img_bytes)
+                    except Exception as exc:
+                        log.warning(f"[upload-pdf OCR] Page {i} render/OCR failed: {exc}")
+                        text = ""
+
+                pages.append({"page": i, "text": text, "char_count": len(text)})
+
+        full_text = "\n\n".join(p["text"] for p in pages if p["text"])
+        lines = [l.strip() for l in full_text.splitlines() if l.strip()]
+        title = lines[0][:512] if lines else (file.filename or "Untitled PDF")
+        return {
+            "filename": file.filename,
+            "total_pages": len(pages),
+            "title": title,
+            "full_text": full_text,
+            "pages": pages,
+            "word_count": len(full_text.split()),
+            "char_count": len(full_text),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"PDF extraction failed: {exc}")
