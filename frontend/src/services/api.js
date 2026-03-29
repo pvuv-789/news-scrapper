@@ -137,6 +137,15 @@ export default {
         return apiClient.get(`/scrape/classifieds-images?pgid=${encodeURIComponent(pgid)}`)
     },
 
+    // Upload a local PDF file and extract its text content
+    uploadPdf(file) {
+        const form = new FormData()
+        form.append('file', file)
+        return apiClient.post('/scrape/upload-pdf', form, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        })
+    },
+
     // URL for the standalone classifieds viewer page (served at /viewer/classifieds)
     // Pass pgid directly, or let the viewer show the input form if pgid is unknown.
     classifiedsViewerUrl(pgid = '', edition = '', date = '', eid = '') {

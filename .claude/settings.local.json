@@ -32,7 +32,18 @@
       "Bash(/c/Users/Dell/Downloads/E-scrapper/.venv/Scripts/python.exe -c \"\nimport asyncio\nfrom playwright.async_api import async_playwright\n\nasync def test\\(\\):\n    async with async_playwright\\(\\) as pw:\n        browser = await pw.chromium.launch\\(\\)\n        page = await browser.new_page\\(\\)\n        await page.set_content\\('<html><body><p style=\\\\\"font-family:Nirmala UI\\\\\">வணக்கம்</p></body></html>'\\)\n        pdf = await page.pdf\\(format='A4'\\)\n        await browser.close\\(\\)\n        print\\('PDF generated, size:', len\\(pdf\\), 'bytes'\\)\n\nasyncio.run\\(test\\(\\)\\)\n\" 2>&1)",
       "Bash(/c/Users/Dell/Downloads/E-scrapper/.venv/Scripts/python.exe -c \"from fpdf import FPDF; print\\('fpdf OK'\\)\" 2>&1)",
       "Bash(/c/Users/Dell/Downloads/E-scrapper/.venv/Scripts/python.exe -c \"\nfrom PIL import Image\nimport pytesseract\nfrom playwright.async_api import async_playwright\nprint\\('PIL:', Image.__version__\\)\nprint\\('pytesseract OK'\\)\nprint\\('playwright OK'\\)\n\" 2>&1)",
-      "Bash(/c/Users/Dell/Downloads/E-scrapper/.venv/Scripts/python.exe -c \"\nimport asyncio\nfrom playwright.async_api import async_playwright\n\nasync def test\\(\\):\n    async with async_playwright\\(\\) as pw:\n        browser = await pw.chromium.launch\\(\\)\n        page = await browser.new_page\\(\\)\n        await page.set_content\\('<html><body>test</body></html>'\\)\n        pdf = await page.pdf\\(format='A4', margin={'top':'0px','bottom':'0px','left':'0px','right':'0px'}, print_background=True\\)\n        await browser.close\\(\\)\n        print\\('OK', len\\(pdf\\)\\)\n\nasyncio.run\\(test\\(\\)\\)\n\" 2>&1)"
+      "Bash(/c/Users/Dell/Downloads/E-scrapper/.venv/Scripts/python.exe -c \"\nimport asyncio\nfrom playwright.async_api import async_playwright\n\nasync def test\\(\\):\n    async with async_playwright\\(\\) as pw:\n        browser = await pw.chromium.launch\\(\\)\n        page = await browser.new_page\\(\\)\n        await page.set_content\\('<html><body>test</body></html>'\\)\n        pdf = await page.pdf\\(format='A4', margin={'top':'0px','bottom':'0px','left':'0px','right':'0px'}, print_background=True\\)\n        await browser.close\\(\\)\n        print\\('OK', len\\(pdf\\)\\)\n\nasyncio.run\\(test\\(\\)\\)\n\" 2>&1)",
+      "Bash(rm -f package-lock.json)",
+      "Bash(rm -rf dist)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(find /c/Users/Dell/Downloads/e-scrap/E-scrapper/frontend/src -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))",
+      "Bash(C:\\\\Users\\\\Dell\\\\Downloads\\\\E-scrapper\\\\.venv\\\\Scripts\\\\pip install:*)",
+      "Bash(cmd.exe /c \"C:\\\\Users\\\\Dell\\\\Downloads\\\\E-scrapper\\\\.venv\\\\Scripts\\\\pip.exe install python-multipart\")",
+      "Bash(cmd.exe /c \"dir C:\\\\Users\\\\Dell\\\\Downloads\\\\E-scrapper\\\\.venv\\\\Scripts\\\\\")",
+      "Bash(cmd /c \"dir C:\\\\Users\\\\Dell\\\\Downloads\\\\E-scrapper 2>&1\")",
+      "Bash(powershell -Command \"Test-Path 'C:\\\\Users\\\\Dell\\\\Downloads\\\\E-scrapper\\\\.venv'\")",
+      "Bash(uv sync:*)"
     ]
   }
 }
